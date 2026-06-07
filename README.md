@@ -4,7 +4,10 @@
 
 ![Electron](https://img.shields.io/badge/Electron-29-47848F?logo=electron&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
+![Vibecoded](https://img.shields.io/badge/Vibecoded-with%20AI%20🤖-violet)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+> 🤖 **Vibecoded Project**: Questa applicazione è stata sviluppata interamente in modalità pair-programming assistito da Intelligenza Artificiale, ottimizzando e testando le funzionalità in tempo reale.
 
 ---
 
