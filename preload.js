@@ -16,4 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     /** URL → Markdown Converter */
     urlToMarkdown: (opts) => ipcRenderer.invoke('url-to-markdown', opts),
+
+    /** Image Crop */
+    cropImage: (opts) => ipcRenderer.invoke('crop-image', opts),
 });

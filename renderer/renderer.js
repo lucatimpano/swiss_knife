@@ -481,6 +481,32 @@ function _initApp() {
     // ==========================================
     // 2. CONVERTITORE IMMAGINI
     // ==========================================
+
+    // ── SUB-TAB switcher (Converti / Ritaglia)
+    const imgTabConvert = document.getElementById('img-tab-convert');
+    const imgTabCrop = document.getElementById('img-tab-crop');
+    const imgPanelConvert = document.getElementById('img-panel-convert');
+    const imgPanelCrop = document.getElementById('img-panel-crop');
+
+    function switchImgTab(tab) {
+        const TAB_ACTIVE = 'img-tab-active flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition';
+        const TAB_INACTIVE = 'img-tab-inactive flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition';
+        if (tab === 'convert') {
+            imgTabConvert.className = TAB_ACTIVE;
+            imgTabCrop.className = TAB_INACTIVE;
+            imgPanelConvert.classList.remove('hidden');
+            imgPanelCrop.classList.add('hidden');
+        } else {
+            imgTabConvert.className = TAB_INACTIVE;
+            imgTabCrop.className = TAB_ACTIVE;
+            imgPanelConvert.classList.add('hidden');
+            imgPanelCrop.classList.remove('hidden');
+        }
+    }
+    imgTabConvert?.addEventListener('click', () => switchImgTab('convert'));
+    imgTabCrop?.addEventListener('click', () => switchImgTab('crop'));
+
+    // ── Convertitore Immagini (sezione originale)
     const imageSelectBtn = document.getElementById('image-select-btn');
     const imageDropZone = document.getElementById('image-drop-zone');
     const imageFileTag = document.getElementById('image-file-tag');
@@ -586,7 +612,301 @@ function _initApp() {
 
 
     // ==========================================
-    // 3. CONVERTITORE AUDIO
+    // 3. CROP IMMAGINI
+    // ==========================================
+    const cropSelectBtn   = document.getElementById('crop-select-btn');
+    const cropDropZone    = document.getElementById('crop-drop-zone');
+    const cropFileTag     = document.getElementById('crop-file-tag');
+    const cropCanvasCard  = document.getElementById('crop-canvas-card');
+    const cropCanvas      = document.getElementById('crop-canvas');
+    const cropOverlay     = document.getElementById('crop-overlay');
+    const cropCanvasWrap  = document.getElementById('crop-canvas-wrap');
+    const cropSizeLabel   = document.getElementById('crop-size-label');
+    const cropXInput      = document.getElementById('crop-x');
+    const cropYInput      = document.getElementById('crop-y');
+    const cropWInput      = document.getElementById('crop-w');
+    const cropHInput      = document.getElementById('crop-h');
+    const cropResetBtn    = document.getElementById('crop-reset-btn');
+    const cropOverwriteBtn= document.getElementById('crop-overwrite-btn');
+    const cropCopyBtn     = document.getElementById('crop-copy-btn');
+
+    let cropLoadedImage = null;   // { path, name }
+    let cropOrigW = 0, cropOrigH = 0;
+    let cropScaleX = 1, cropScaleY = 1;
+    let cropSelection = { x: 0, y: 0, w: 0, h: 0 }; // in original pixels
+    let cropDragState = null;
+    const HANDLE_SIZE = 8;
+    const MAX_CANVAS_W = 720;
+    const MAX_CANVAS_H = 480;
+
+    function loadCropImageFile(file) {
+        if (!file || !file.path) return;
+        cropLoadedImage = { path: file.path, name: file.name };
+        cropFileTag.innerHTML = '';
+        cropFileTag.appendChild(makeFileTag(cropLoadedImage.name));
+        cropResetBtn.disabled = false;
+        cropOverwriteBtn.disabled = false;
+        cropCopyBtn.disabled = false;
+
+        const img = new Image();
+        img.onload = () => {
+            cropOrigW = img.naturalWidth;
+            cropOrigH = img.naturalHeight;
+
+            const scaleW = Math.min(1, MAX_CANVAS_W / cropOrigW);
+            const scaleH = Math.min(1, MAX_CANVAS_H / cropOrigH);
+            const scale  = Math.min(scaleW, scaleH);
+            const dispW  = Math.round(cropOrigW * scale);
+            const dispH  = Math.round(cropOrigH * scale);
+            cropScaleX   = cropOrigW / dispW;
+            cropScaleY   = cropOrigH / dispH;
+
+            cropCanvas.width   = dispW;
+            cropCanvas.height  = dispH;
+            cropOverlay.width  = dispW;
+            cropOverlay.height = dispH;
+            cropOverlay.style.width  = dispW + 'px';
+            cropOverlay.style.height = dispH + 'px';
+
+            cropCanvas.getContext('2d').drawImage(img, 0, 0, dispW, dispH);
+
+            cropSelection = { x: 0, y: 0, w: cropOrigW, h: cropOrigH };
+            updateCropInputs();
+            drawCropOverlay();
+            cropCanvasCard.classList.remove('hidden');
+            showToast(`Immagine caricata: ${cropOrigW}×${cropOrigH}px`);
+        };
+        img.onerror = () => showToast("Impossibile caricare l'immagine", 'error');
+        img.src = `file://${file.path}`;
+    }
+
+    function updateCropInputs() {
+        cropXInput.value = Math.round(cropSelection.x);
+        cropYInput.value = Math.round(cropSelection.y);
+        cropWInput.value = Math.round(cropSelection.w);
+        cropHInput.value = Math.round(cropSelection.h);
+        cropSizeLabel.textContent = `${Math.round(cropSelection.w)} × ${Math.round(cropSelection.h)} px`;
+    }
+
+    function selectionFromInputs() {
+        let x = parseInt(cropXInput.value, 10) || 0;
+        let y = parseInt(cropYInput.value, 10) || 0;
+        let w = parseInt(cropWInput.value, 10) || 1;
+        let h = parseInt(cropHInput.value, 10) || 1;
+        x = Math.max(0, Math.min(x, cropOrigW - 1));
+        y = Math.max(0, Math.min(y, cropOrigH - 1));
+        w = Math.max(1, Math.min(w, cropOrigW - x));
+        h = Math.max(1, Math.min(h, cropOrigH - y));
+        cropSelection = { x, y, w, h };
+        cropSizeLabel.textContent = `${Math.round(w)} × ${Math.round(h)} px`;
+        drawCropOverlay();
+    }
+
+    function drawCropOverlay() {
+        if (!cropOverlay.width) return;
+        const ctx = cropOverlay.getContext('2d');
+        const dW  = cropOverlay.width;
+        const dH  = cropOverlay.height;
+        const sx  = cropSelection.x / cropScaleX;
+        const sy  = cropSelection.y / cropScaleY;
+        const sw  = cropSelection.w / cropScaleX;
+        const sh  = cropSelection.h / cropScaleY;
+
+        ctx.clearRect(0, 0, dW, dH);
+
+        // Scurisci area fuori selezione
+        ctx.fillStyle = 'rgba(0,0,0,0.52)';
+        ctx.fillRect(0, 0, dW, dH);
+        ctx.clearRect(sx, sy, sw, sh);
+
+        // Bordo selezione
+        ctx.strokeStyle = '#2dd4bf';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(sx + 0.75, sy + 0.75, sw - 1.5, sh - 1.5);
+
+        // Griglia regola dei terzi
+        ctx.strokeStyle = 'rgba(45,212,191,0.22)';
+        ctx.lineWidth = 0.5;
+        for (let i = 1; i <= 2; i++) {
+            ctx.beginPath(); ctx.moveTo(sx + sw * i / 3, sy); ctx.lineTo(sx + sw * i / 3, sy + sh); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(sx, sy + sh * i / 3); ctx.lineTo(sx + sw, sy + sh * i / 3); ctx.stroke();
+        }
+
+        // Handle d'angolo e lato
+        const handles = getCropHandles(sx, sy, sw, sh);
+        ctx.fillStyle   = '#2dd4bf';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth   = 1;
+        handles.forEach(h => {
+            ctx.beginPath();
+            ctx.rect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+            ctx.fill();
+            ctx.stroke();
+        });
+    }
+
+    function getCropHandles(sx, sy, sw, sh) {
+        const cx = sx + sw / 2, cy = sy + sh / 2;
+        return [
+            { id: 'nw', x: sx,      y: sy },
+            { id: 'n',  x: cx,      y: sy },
+            { id: 'ne', x: sx + sw, y: sy },
+            { id: 'e',  x: sx + sw, y: cy },
+            { id: 'se', x: sx + sw, y: sy + sh },
+            { id: 's',  x: cx,      y: sy + sh },
+            { id: 'sw', x: sx,      y: sy + sh },
+            { id: 'w',  x: sx,      y: cy },
+        ];
+    }
+
+    function hitTestCropHandle(ex, ey) {
+        const sx = cropSelection.x / cropScaleX;
+        const sy = cropSelection.y / cropScaleY;
+        const sw = cropSelection.w / cropScaleX;
+        const sh = cropSelection.h / cropScaleY;
+        for (const h of getCropHandles(sx, sy, sw, sh)) {
+            if (Math.abs(ex - h.x) <= HANDLE_SIZE && Math.abs(ey - h.y) <= HANDLE_SIZE) return h.id;
+        }
+        return null;
+    }
+
+    function isInsideCropSel(ex, ey) {
+        const sx = cropSelection.x / cropScaleX;
+        const sy = cropSelection.y / cropScaleY;
+        const sw = cropSelection.w / cropScaleX;
+        const sh = cropSelection.h / cropScaleY;
+        return ex >= sx && ex <= sx + sw && ey >= sy && ey <= sy + sh;
+    }
+
+    cropCanvasWrap?.addEventListener('mousedown', (e) => {
+        if (!cropLoadedImage) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const ex = e.clientX - rect.left;
+        const ey = e.clientY - rect.top;
+        const hit = hitTestCropHandle(ex, ey);
+        if (hit) {
+            cropDragState = { type: 'handle', id: hit, startSel: { ...cropSelection }, startX: ex, startY: ey };
+        } else if (isInsideCropSel(ex, ey)) {
+            cropDragState = { type: 'move', startSel: { ...cropSelection }, startX: ex, startY: ey };
+        } else {
+            const ox = ex * cropScaleX, oy = ey * cropScaleY;
+            cropDragState = { type: 'new', originX: ox, originY: oy };
+            cropSelection = { x: ox, y: oy, w: 1, h: 1 };
+        }
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!cropDragState || !cropLoadedImage) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const ex = e.clientX - rect.left;
+        const ey = e.clientY - rect.top;
+        const ox = ex * cropScaleX, oy = ey * cropScaleY;
+
+        if (cropDragState.type === 'new') {
+            const dox = cropDragState.originX, doy = cropDragState.originY;
+            let nx = Math.max(0, Math.min(dox, ox));
+            let ny = Math.max(0, Math.min(doy, oy));
+            let nw = Math.max(1, Math.abs(ox - dox));
+            let nh = Math.max(1, Math.abs(oy - doy));
+            nw = Math.min(nw, cropOrigW - nx);
+            nh = Math.min(nh, cropOrigH - ny);
+            cropSelection = { x: nx, y: ny, w: nw, h: nh };
+        } else if (cropDragState.type === 'move') {
+            const dx = (ex - cropDragState.startX) * cropScaleX;
+            const dy = (ey - cropDragState.startY) * cropScaleY;
+            let nx = Math.max(0, Math.min(cropDragState.startSel.x + dx, cropOrigW - cropDragState.startSel.w));
+            let ny = Math.max(0, Math.min(cropDragState.startSel.y + dy, cropOrigH - cropDragState.startSel.h));
+            cropSelection = { ...cropDragState.startSel, x: nx, y: ny };
+        } else if (cropDragState.type === 'handle') {
+            const dx = (ex - cropDragState.startX) * cropScaleX;
+            const dy = (ey - cropDragState.startY) * cropScaleY;
+            let { x, y, w, h } = cropDragState.startSel;
+            const id = cropDragState.id;
+            if (id.includes('e')) { w = Math.max(1, w + dx); }
+            if (id.includes('w')) { const nw = Math.max(1, w - dx); x += w - nw; w = nw; }
+            if (id.includes('s')) { h = Math.max(1, h + dy); }
+            if (id.includes('n')) { const nh = Math.max(1, h - dy); y += h - nh; h = nh; }
+            x = Math.max(0, x); y = Math.max(0, y);
+            w = Math.min(w, cropOrigW - x); h = Math.min(h, cropOrigH - y);
+            cropSelection = { x, y, w, h };
+        }
+        updateCropInputs();
+        drawCropOverlay();
+    });
+
+    window.addEventListener('mouseup', () => { cropDragState = null; });
+
+    cropCanvasWrap?.addEventListener('mousemove', (e) => {
+        if (!cropLoadedImage) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const ex = e.clientX - rect.left, ey = e.clientY - rect.top;
+        const hit = hitTestCropHandle(ex, ey);
+        if (hit) {
+            const c = { nw:'nw-resize', ne:'ne-resize', se:'se-resize', sw:'sw-resize', n:'n-resize', e:'e-resize', s:'s-resize', w:'w-resize' };
+            cropCanvasWrap.style.cursor = c[hit] || 'crosshair';
+        } else if (isInsideCropSel(ex, ey)) {
+            cropCanvasWrap.style.cursor = 'move';
+        } else {
+            cropCanvasWrap.style.cursor = 'crosshair';
+        }
+    });
+
+    [cropXInput, cropYInput, cropWInput, cropHInput].forEach(inp => {
+        inp?.addEventListener('change', selectionFromInputs);
+    });
+
+    cropResetBtn?.addEventListener('click', () => {
+        cropSelection = { x: 0, y: 0, w: cropOrigW, h: cropOrigH };
+        updateCropInputs();
+        drawCropOverlay();
+    });
+
+    cropSelectBtn?.addEventListener('click', () => pickFile('image/*', loadCropImageFile));
+    if (cropDropZone) setupDropZone(cropDropZone, (files) => {
+        if (files[0]) loadCropImageFile(files[0]);
+    }, ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tiff']);
+
+    async function doCropAndSave(overwrite) {
+        if (!cropLoadedImage) return;
+        const { x, y, w, h } = cropSelection;
+        if (w < 1 || h < 1) { showToast("Seleziona un'area valida", 'error'); return; }
+
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = `file://${cropLoadedImage.path}`; });
+
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width  = Math.round(w);
+        tmpCanvas.height = Math.round(h);
+        tmpCanvas.getContext('2d').drawImage(img, Math.round(x), Math.round(y), Math.round(w), Math.round(h), 0, 0, Math.round(w), Math.round(h));
+
+        const rawExt = cropLoadedImage.name.split('.').pop().toLowerCase();
+        const mime    = (rawExt === 'jpg' || rawExt === 'jpeg') ? 'image/jpeg' : rawExt === 'webp' ? 'image/webp' : 'image/png';
+        const saveExt = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+        const base64  = tmpCanvas.toDataURL(mime, 0.92);
+
+        const btn = overwrite ? cropOverwriteBtn : cropCopyBtn;
+        const origHTML = btn.innerHTML;
+        setBtnLoading(btn, true, origHTML);
+        try {
+            const result = await window.electronAPI.cropImage({ base64, sourcePath: cropLoadedImage.path, ext: saveExt, overwrite });
+            if (result.success) {
+                showToast(overwrite ? 'Immagine sovrascritta!' : `Copia salvata: ${result.path.split('/').pop()}`);
+            } else if (result.reason !== 'cancelled') {
+                showToast(result.reason, 'error');
+            }
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBtnLoading(btn, false, origHTML);
+        }
+    }
+
+    cropOverwriteBtn?.addEventListener('click', () => doCropAndSave(true));
+    cropCopyBtn?.addEventListener('click', () => doCropAndSave(false));
+
+    // ==========================================
+    // 4. CONVERTITORE AUDIO
     // ==========================================
     const audioSelectBtn = document.getElementById('audio-select-btn');
     const audioDropZone = document.getElementById('audio-drop-zone');

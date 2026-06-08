@@ -542,6 +542,39 @@ ipcMain.handle('url-to-markdown', async (_event, { url, saveFile }) => {
   }
 });
 
+// ─── IPC: Crop Image ─────────────────────────────────────────────────────────
+ipcMain.handle('crop-image', async (_event, { base64, sourcePath, ext, overwrite }) => {
+  try {
+    // Decodifica base64 → Buffer
+    const dataPrefix = base64.indexOf(',');
+    const b64Data = dataPrefix >= 0 ? base64.slice(dataPrefix + 1) : base64;
+    const buffer = Buffer.from(b64Data, 'base64');
+
+    if (overwrite) {
+      // Sovrascrive il file originale
+      fs.writeFileSync(sourcePath, buffer);
+      shell.openPath(sourcePath);
+      return { success: true, path: sourcePath };
+    } else {
+      // Apre dialog salva-come
+      const baseName = path.basename(sourcePath, path.extname(sourcePath));
+      const defaultName = `${baseName}_ritagliata.${ext}`;
+      const { filePath: outPath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Salva copia ritagliata',
+        defaultPath: path.join(path.dirname(sourcePath), defaultName),
+        filters: [{ name: `${ext.toUpperCase()} Image`, extensions: [ext] }],
+      });
+      if (canceled || !outPath) return { success: false, reason: 'cancelled' };
+      fs.writeFileSync(outPath, buffer);
+      shell.openPath(outPath);
+      return { success: true, path: outPath };
+    }
+  } catch (err) {
+    console.error('Crop image error:', err);
+    return { success: false, reason: err.message };
+  }
+});
+
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   createWindow();

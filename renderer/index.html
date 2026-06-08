@@ -101,6 +101,20 @@
     /* ══════════════════════════════════════════════─
        PDF & MEDIA CARD styles
     ═══════════════════════════════════════════════ */
+    .img-tab-active {
+      background: rgba(13, 148, 136, 0.12);
+      border: 1px solid rgba(13, 148, 136, 0.3);
+      color: #2dd4bf;
+    }
+    .img-tab-inactive {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #94a3b8;
+    }
+    .img-tab-inactive:hover {
+      background: rgba(255,255,255,0.04);
+      color: #e2e8f0;
+    }
     .pdf-tool-card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.07);
@@ -218,6 +232,39 @@
 
     .btn-pdf-purple:hover:not(:disabled) {
       background: #8b5cf6;
+    }
+
+    /* ── Crop Tool ───────────────────────────────────────────── */
+    #crop-canvas-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      user-select: none;
+      cursor: crosshair;
+    }
+
+    #crop-canvas {
+      display: block;
+      border-radius: 8px;
+    }
+
+    #crop-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+    }
+
+    .btn-pdf-teal {
+      background: #0d9488;
+    }
+    .btn-pdf-teal:hover:not(:disabled) {
+      background: #14b8a6;
+    }
+    .btn-pdf-rose {
+      background: #be123c;
+    }
+    .btn-pdf-rose:hover:not(:disabled) {
+      background: #e11d48;
     }
   </style>
 </head>
@@ -502,80 +549,192 @@
         <div class="h-full overflow-y-auto p-6">
           <div class="mb-6">
             <h2 class="text-xl font-bold text-slate-100">Convertitore Immagini</h2>
-            <p class="text-sm text-slate-400 mt-1">Converti immagini tra formati diversi, ridimensionale e regolane la compressione.</p>
+            <p class="text-sm text-slate-400 mt-1">Converti immagini tra formati diversi, ridimensionale, regola la compressione e ritagliale con precisione.</p>
           </div>
-          
-          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <!-- Left inputs (2/3 width) -->
-            <div class="xl:col-span-2 space-y-5">
-              <div class="pdf-tool-card flex flex-col justify-between min-h-[320px]">
-                <div>
-                  <h3 class="font-semibold text-slate-100 mb-4">Seleziona File Immagine</h3>
-                  
-                  <div id="image-drop-zone" class="pdf-drop-zone py-14 flex flex-col items-center justify-center">
-                    <span class="material-symbols-outlined text-5xl text-primary/60 mb-2 block animate-pulse">image</span>
-                    <p class="text-sm text-slate-400">Trascina l'immagine qui (.png, .jpg, .webp, .bmp, .gif) oppure</p>
-                    <button id="image-select-btn" class="text-primary text-sm font-semibold hover:underline mt-1">seleziona file…</button>
-                  </div>
-                </div>
-                
-                <div id="image-file-tag" class="mt-4"></div>
-              </div>
-            </div>
-            
-            <!-- Right settings (1/3 width) -->
-            <div class="space-y-5">
-              <div class="pdf-tool-card">
-                <h3 class="font-semibold text-slate-100 mb-4">Opzioni di Conversione</h3>
-                
-                <div class="space-y-5">
-                  <!-- Target Format selection -->
+
+          <!-- Sub-tab bar -->
+          <div class="flex gap-2 mb-6 border-b border-slate-800 pb-3">
+            <button id="img-tab-convert"
+              class="img-tab-active flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition"
+              data-tab="convert">
+              <span class="material-symbols-outlined text-[16px]">transform</span> Converti
+            </button>
+            <button id="img-tab-crop"
+              class="img-tab-inactive flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition"
+              data-tab="crop">
+              <span class="material-symbols-outlined text-[16px]">crop</span> Ritaglia
+            </button>
+          </div>
+
+          <!-- ════ SUB-PANEL: CONVERT ════ -->
+          <div id="img-panel-convert">
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <!-- Left inputs (2/3 width) -->
+              <div class="xl:col-span-2 space-y-5">
+                <div class="pdf-tool-card flex flex-col justify-between min-h-[320px]">
                   <div>
-                    <label for="image-format" class="text-xs text-slate-400 block mb-1.5 font-semibold">Formato di Destinazione</label>
-                    <select id="image-format" class="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary/50">
-                      <option value="PNG">PNG (.png)</option>
-                      <option value="JPG" selected>JPEG (.jpg)</option>
-                      <option value="WEBP">WEBP (.webp)</option>
-                      <option value="BMP">BMP (.bmp)</option>
-                      <option value="GIF">GIF (.gif)</option>
-                    </select>
-                  </div>
-                  
-                  <!-- Resizing Options -->
-                  <div class="pt-3 border-t border-slate-800">
-                    <label class="text-xs text-slate-400 block mb-2 font-semibold">Ridimensiona (Vuoto per originale)</label>
-                    <div class="grid grid-cols-2 gap-3 mb-2">
-                      <div>
-                        <span class="text-[10px] text-slate-500 block mb-1 font-medium">Larghezza (px)</span>
-                        <input id="image-width" type="number" placeholder="Larghezza" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary/50">
-                      </div>
-                      <div>
-                        <span class="text-[10px] text-slate-500 block mb-1 font-medium">Altezza (px)</span>
-                        <input id="image-height" type="number" placeholder="Altezza" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary/50">
-                      </div>
+                    <h3 class="font-semibold text-slate-100 mb-4">Seleziona File Immagine</h3>
+
+                    <div id="image-drop-zone" class="pdf-drop-zone py-14 flex flex-col items-center justify-center">
+                      <span class="material-symbols-outlined text-5xl text-primary/60 mb-2 block animate-pulse">image</span>
+                      <p class="text-sm text-slate-400">Trascina l'immagine qui (.png, .jpg, .webp, .bmp, .gif) oppure</p>
+                      <button id="image-select-btn" class="text-primary text-sm font-semibold hover:underline mt-1">seleziona file…</button>
                     </div>
                   </div>
-                  
-                  <!-- Quality Slider -->
-                  <div id="image-quality-container" class="pt-3 border-t border-slate-800">
-                    <div class="flex justify-between items-center mb-1">
-                      <label for="image-quality" class="text-xs text-slate-400 font-semibold">Qualità / Compressione</label>
-                      <span id="image-quality-val" class="text-xs text-primary font-bold">90%</span>
+
+                  <div id="image-file-tag" class="mt-4"></div>
+                </div>
+              </div>
+
+              <!-- Right settings (1/3 width) -->
+              <div class="space-y-5">
+                <div class="pdf-tool-card">
+                  <h3 class="font-semibold text-slate-100 mb-4">Opzioni di Conversione</h3>
+
+                  <div class="space-y-5">
+                    <!-- Target Format selection -->
+                    <div>
+                      <label for="image-format" class="text-xs text-slate-400 block mb-1.5 font-semibold">Formato di Destinazione</label>
+                      <select id="image-format" class="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary/50">
+                        <option value="PNG">PNG (.png)</option>
+                        <option value="JPG" selected>JPEG (.jpg)</option>
+                        <option value="WEBP">WEBP (.webp)</option>
+                        <option value="BMP">BMP (.bmp)</option>
+                        <option value="GIF">GIF (.gif)</option>
+                      </select>
                     </div>
-                    <input id="image-quality" type="range" min="1" max="100" value="90" class="w-full accent-primary bg-slate-850 h-1.5 rounded-lg appearance-none cursor-pointer">
-                  </div>
-                  
-                  <!-- Convert Button -->
-                  <div class="pt-4 border-t border-slate-800">
-                    <button id="image-convert-btn" class="w-full btn-pdf-action btn-pdf-primary justify-center" disabled>
-                      <span class="material-symbols-outlined text-lg">transform</span>
-                      Converti Immagine
-                    </button>
+
+                    <!-- Resizing Options -->
+                    <div class="pt-3 border-t border-slate-800">
+                      <label class="text-xs text-slate-400 block mb-2 font-semibold">Ridimensiona (Vuoto per originale)</label>
+                      <div class="grid grid-cols-2 gap-3 mb-2">
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1 font-medium">Larghezza (px)</span>
+                          <input id="image-width" type="number" placeholder="Larghezza" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary/50">
+                        </div>
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1 font-medium">Altezza (px)</span>
+                          <input id="image-height" type="number" placeholder="Altezza" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary/50">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Quality Slider -->
+                    <div id="image-quality-container" class="pt-3 border-t border-slate-800">
+                      <div class="flex justify-between items-center mb-1">
+                        <label for="image-quality" class="text-xs text-slate-400 font-semibold">Qualità / Compressione</label>
+                        <span id="image-quality-val" class="text-xs text-primary font-bold">90%</span>
+                      </div>
+                      <input id="image-quality" type="range" min="1" max="100" value="90" class="w-full accent-primary bg-slate-850 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Convert Button -->
+                    <div class="pt-4 border-t border-slate-800">
+                      <button id="image-convert-btn" class="w-full btn-pdf-action btn-pdf-primary justify-center" disabled>
+                        <span class="material-symbols-outlined text-lg">transform</span>
+                        Converti Immagine
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </div><!-- end convert sub-panel -->
+
+          <!-- ════ SUB-PANEL: CROP ════ -->
+          <div id="img-panel-crop" class="hidden">
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+              <!-- Left: canvas preview (2/3) -->
+              <div class="xl:col-span-2 space-y-4">
+                <div class="pdf-tool-card">
+                  <h3 class="font-semibold text-slate-100 mb-4">Seleziona File Immagine</h3>
+                  <div id="crop-drop-zone" class="pdf-drop-zone py-10 flex flex-col items-center justify-center">
+                    <span class="material-symbols-outlined text-5xl text-teal-400/60 mb-2 block animate-pulse">crop_original</span>
+                    <p class="text-sm text-slate-400">Trascina l'immagine qui oppure</p>
+                    <button id="crop-select-btn" class="text-teal-400 text-sm font-semibold hover:underline mt-1">seleziona file…</button>
+                  </div>
+                  <div id="crop-file-tag" class="mt-3"></div>
+                </div>
+
+                <!-- Canvas container -->
+                <div id="crop-canvas-card" class="pdf-tool-card hidden">
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-slate-100">Area di Ritaglio</h3>
+                    <span class="text-xs text-teal-400 font-mono" id="crop-size-label"></span>
+                  </div>
+                  <div class="flex items-center justify-center overflow-auto bg-slate-900/60 rounded-xl p-3">
+                    <div id="crop-canvas-wrap">
+                      <canvas id="crop-canvas"></canvas>
+                      <canvas id="crop-overlay"></canvas>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-slate-500 mt-2 font-medium">Trascina per selezionare l'area da ritagliare. Trascina gli angoli per ridimensionare.</p>
+                </div>
+              </div>
+
+              <!-- Right: controls (1/3) -->
+              <div class="space-y-4">
+                <div class="pdf-tool-card">
+                  <h3 class="font-semibold text-teal-400 mb-4">Opzioni Ritaglio</h3>
+
+                  <div class="space-y-4">
+                    <!-- Numeric inputs -->
+                    <div>
+                      <label class="text-xs text-slate-400 block mb-2 font-semibold">Posizione (pixel immagine originale)</label>
+                      <div class="grid grid-cols-2 gap-2">
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1">X (sinistra)</span>
+                          <input id="crop-x" type="number" value="0" min="0" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-400/50">
+                        </div>
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1">Y (alto)</span>
+                          <input id="crop-y" type="number" value="0" min="0" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-400/50">
+                        </div>
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1">Larghezza</span>
+                          <input id="crop-w" type="number" value="0" min="1" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-400/50">
+                        </div>
+                        <div>
+                          <span class="text-[10px] text-slate-500 block mb-1">Altezza</span>
+                          <input id="crop-h" type="number" value="0" min="1" class="w-full bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-400/50">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Reset selection -->
+                    <button id="crop-reset-btn" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-semibold transition" disabled>
+                      <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+                      Seleziona tutto
+                    </button>
+
+                    <!-- Divider -->
+                    <div class="border-t border-slate-800 pt-4">
+                      <label class="text-xs text-slate-400 block mb-3 font-semibold">Salva come</label>
+
+                      <!-- Overwrite button -->
+                      <button id="crop-overwrite-btn" class="w-full btn-pdf-action btn-pdf-rose justify-center mb-2" disabled>
+                        <span class="material-symbols-outlined text-lg">save</span>
+                        Sovrascrivi originale
+                      </button>
+
+                      <!-- Save copy button -->
+                      <button id="crop-copy-btn" class="w-full btn-pdf-action btn-pdf-teal justify-center" disabled>
+                        <span class="material-symbols-outlined text-lg">file_copy</span>
+                        Salva come copia
+                      </button>
+                    </div>
+
+                    <p class="text-[10px] text-slate-500 font-medium">
+                      <span class="text-rose-400 font-bold">Sovrascrivi</span> sostituisce il file originale.
+                      <span class="text-teal-400 font-bold">Salva copia</span> apre una finestra per scegliere dove salvare.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div><!-- end crop sub-panel -->
+
         </div>
       </div><!-- end Image Converter panel -->
 
