@@ -872,8 +872,13 @@ function _initApp() {
         const { x, y, w, h } = cropSelection;
         if (w < 1 || h < 1) { showToast("Seleziona un'area valida", 'error'); return; }
 
+        // Carica l'immagine originale (bypass cache con timestamp)
         const img = new Image();
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = `file://${cropLoadedImage.path}`; });
+        await new Promise((res, rej) => {
+            img.onload = res;
+            img.onerror = rej;
+            img.src = `file://${cropLoadedImage.path}?t=${Date.now()}`;
+        });
 
         const tmpCanvas = document.createElement('canvas');
         tmpCanvas.width  = Math.round(w);
